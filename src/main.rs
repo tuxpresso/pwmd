@@ -80,6 +80,7 @@ fn main() -> std::io::Result<()> {
         }
 
         // Consume all commands
+        pulse_ms = 0;
         while let Some(ms) = read_u32(&sock) {
             // pulse must be no longer than period and not between (0, min)
             pulse_ms = match ms {
