@@ -7,25 +7,8 @@ use std::time::Duration;
 
 use clap::Parser;
 
-#[derive(Parser, Debug)]
-#[command()]
-struct Args {
-    /// Period in millis
-    #[arg(short)]
-    period_ms: u32,
-
-    /// Minimum pulse width in millis
-    #[arg(short)]
-    min_pulse_ms: u32,
-
-    /// Path to gpio sysfs
-    #[arg(short)]
-    gpio_path: String,
-
-    /// Address to bind socket to
-    #[arg(short)]
-    bind_address: String,
-}
+mod args;
+use crate::args::Args;
 
 fn read_u32(sock: &UdpSocket) -> Option<u32> {
     let mut buf = [0; 5];
