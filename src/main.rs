@@ -5,21 +5,25 @@ use std::net::UdpSocket;
 use std::thread::sleep;
 use std::time::Duration;
 
+use ciborium::de::from_reader;
 use clap::Parser;
+use serde::Deserialize;
 
 mod args;
 use crate::args::Args;
 
-fn read_u32(sock: &UdpSocket) -> Option<u32> {
-    let mut buf = [0; 5];
+#[derive(Deserialize)]
+struct PwmMessage {
+    pulse_ms: u32,
+}
+
+fn read_message(sock: &UdpSocket) -> Option<PwmMessage> {
+    let mut buf = [0; 1024];
     match sock.recv_from(&mut buf) {
-        Ok((4, _)) => Some(
-            (buf[0] as u32)
-                | (buf[1] as u32) << 8
-                | (buf[2] as u32) << 16
-                | (buf[3] as u32) << 24,
-        ),
-        Ok((_, _)) => read_u32(sock), // consume invalid data
+        Ok((n, _)) => match from_reader(&buf[0..n]) {
+            Ok(msg) => Some(msg),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -62,11 +66,11 @@ fn main() -> std::io::Result<()> {
 
         // Consume all commands
         pulse_ms = 0;
-        while let Some(ms) = read_u32(&sock) {
+        while let Some(msg) = read_message(&sock) {
             // pulse must be no longer than period and not between (0, min)
-            pulse_ms = match ms {
+            pulse_ms = match msg.pulse_ms {
                 0 => 0,
-                _ => min(max(args.min_pulse_ms, ms), args.period_ms),
+                ms => min(max(args.min_pulse_ms, ms), args.period_ms),
             };
             println!("{}", pulse_ms);
         }
