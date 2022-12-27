@@ -48,7 +48,6 @@ fn main() -> std::io::Result<()> {
                 is_on = true;
                 gpio.write_all("1".as_bytes())
                     .expect("failed to write to gpio");
-                println!("on");
             }
             sleep(pulse);
         }
@@ -57,7 +56,6 @@ fn main() -> std::io::Result<()> {
                 is_on = false;
                 gpio.write_all("0".as_bytes())
                     .expect("failed to write to gpio");
-                println!("off");
             }
             sleep(remainder);
         }
