@@ -10,12 +10,4 @@ pub struct Args {
     /// Minimum pulse width in millis
     #[arg(short)]
     pub min_pulse_ms: u32,
-
-    /// Path to gpio sysfs
-    #[arg(short)]
-    pub gpio_path: String,
-
-    /// Address to bind socket to
-    #[arg(short)]
-    pub bind_address: String,
 }

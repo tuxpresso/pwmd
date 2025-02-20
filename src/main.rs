@@ -1,8 +1,7 @@
 use std::cmp::{max, min};
-use std::fs::File;
-use std::io::Write;
-use std::net::UdpSocket;
-use std::thread::sleep;
+use std::io::{self, BufRead};
+use std::sync::mpsc;
+use std::thread::{self, sleep};
 use std::time::Duration;
 
 use clap::Parser;
@@ -10,31 +9,22 @@ use clap::Parser;
 mod args;
 use crate::args::Args;
 
-fn read_u32(sock: &UdpSocket) -> Option<u32> {
-    let mut buf = [0; 5];
-    match sock.recv_from(&mut buf) {
-        Ok((4, _)) => Some(
-            (buf[0] as u32)
-                | (buf[1] as u32) << 8
-                | (buf[2] as u32) << 16
-                | (buf[3] as u32) << 24,
-        ),
-        Ok((_, _)) => read_u32(sock), // consume invalid data
-        _ => None,
-    }
-}
-
 fn main() -> std::io::Result<()> {
     let args = Args::parse();
 
-    let mut gpio = File::options()
-        .append(true)
-        .open(args.gpio_path)
-        .expect("failed to open gpio");
-    let sock =
-        UdpSocket::bind(args.bind_address).expect("failed to bind socket");
-    sock.set_nonblocking(true)
-        .expect("failed to set socket to nonblocking");
+    // Use channels to achieve nonblocking reads from stdin
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut lines = io::stdin().lock().lines();
+        loop {
+            let line = lines.next().unwrap().unwrap();
+            let ms = match line.trim().parse::<u32>() {
+                Ok(ms) => ms,
+                _ => 0,
+            };
+            tx.send(ms).unwrap();
+        }
+    });
 
     let mut is_on = false;
     let mut pulse_ms = 0;
@@ -46,29 +36,27 @@ fn main() -> std::io::Result<()> {
         if !pulse.is_zero() {
             if !is_on {
                 is_on = true;
-                gpio.write_all("1".as_bytes())
-                    .expect("failed to write to gpio");
+                println!("1");
             }
             sleep(pulse);
         }
         if !remainder.is_zero() {
             if is_on {
                 is_on = false;
-                gpio.write_all("0".as_bytes())
-                    .expect("failed to write to gpio");
+                println!("0");
             }
             sleep(remainder);
         }
 
         // Consume all commands
         pulse_ms = 0;
-        while let Some(ms) = read_u32(&sock) {
+        while let Ok(ms) = rx.try_recv() {
             // pulse must be no longer than period and not between (0, min)
             pulse_ms = match ms {
                 0 => 0,
                 _ => min(max(args.min_pulse_ms, ms), args.period_ms),
             };
-            println!("{}", pulse_ms);
         }
+        eprintln!("pulsing for {} ms", pulse_ms);
     }
 }
